@@ -13,9 +13,10 @@ export async function loader({ params }: Route.LoaderArgs) {
 
 export async function action({ params, request }: Route.ActionArgs) {
   const formData = await request.formData();
-  return updateContact(params.contactId, {
+  const payload = {
     favorite: formData.get("favorite") === "true",
-  });
+  };
+  return await updateContact(params.contactId, payload);
 }
 
 export default function Contact({ loaderData }: Route.ComponentProps) {

@@ -6,6 +6,9 @@ import { matchSorter } from "match-sorter";
 // @ts-expect-error - no types, but it's a tiny function
 import sortBy from "sort-by";
 import invariant from "tiny-invariant";
+import { logger } from "~/service/logger.server";
+import { getRandomNumber } from "~/service/profile.server";
+import { logSwitch } from "~/service/log-switch.server";
 
 type ContactMutation = {
   id?: string;
@@ -70,16 +73,88 @@ export async function getContacts(query?: string | null) {
       keys: ["first", "last"],
     });
   }
-  return contacts.sort(sortBy("last", "createdAt"));
+  contacts = contacts.sort(sortBy("last", "createdAt"));
+
+  if (logSwitch.source === "api") {
+    const params = new URLSearchParams({ q: query ?? "" });
+    logger.info("fetch contacts", {
+      __type: "api",
+      method: "GET",
+      url: `https://address-book.com/api/contacts${query ? `?${params}` : ""}`,
+      status: 200,
+      response: { contacts },
+      ms: getRandomNumber(30, 500),
+    });
+  } else {
+    logger.info("query", {
+      __type: "query",
+      query:
+        "SELECT * FROM Contact" +
+        (query
+          ? ` WHERE first LIKE '%${query}%' OR last LIKE '%${query}%'`
+          : ""),
+      params: [],
+      data: contacts,
+      ms: getRandomNumber(4, 50),
+    });
+  }
+
+  return contacts;
 }
 
 export async function createEmptyContact() {
   const contact = await fakeContacts.create({});
+  if (logSwitch.source === "api") {
+    logger.info("create empty contact", {
+      __type: "api",
+      method: "POST",
+      url: `https://address-book.com/api/contacts`,
+      status: 200,
+      response: { contact },
+      ms: getRandomNumber(2, 20),
+    });
+  } else {
+    logger.info("query", {
+      __type: "query",
+      query: "INSERT INTO contacts VALUES ()",
+      params: [],
+      ms: getRandomNumber(10, 20),
+    });
+    logger.info("query", {
+      __type: "query",
+      query: "SELECT * FROM Contact WHERE id = LAST_INSERT_ID()",
+      params: [],
+      data: [contact],
+      ms: getRandomNumber(3, 40),
+    });
+  }
+
   return contact;
 }
 
 export async function getContact(id: string) {
-  return fakeContacts.get(id);
+  let contact = await fakeContacts.get(id);
+
+  if (logSwitch.source === "api") {
+    logger.info("fetch contact", {
+      __type: "api",
+      method: "GET",
+      url: `https://address-book.com/api/contacts/${id}`,
+      status: 200,
+      response: { contact },
+      ms: getRandomNumber(50, 500),
+    });
+  } else {
+    logger.info("query", {
+      __type: "query",
+      query: `SELECT * FROM Contact WHERE id = $1`,
+      params: [id],
+      data: [contact],
+      ms: getRandomNumber(2, 13),
+    });
+  }
+
+  return contact;
 }
 
 export async function updateContact(id: string, updates: ContactMutation) {
@@ -87,12 +162,59 @@ export async function updateContact(id: string, updates: ContactMutation) {
   if (!contact) {
     throw new Error(`No contact found for ${id}`);
   }
-  await fakeContacts.set(id, { ...contact, ...updates });
+  let payload = { ...contact, ...updates };
+  if (typeof payload.favorite !== "boolean") {
+    payload.favorite = false;
+  }
+  await fakeContacts.set(id, payload);
+
+  if (logSwitch.source === "api") {
+    logger.info("update contact", {
+      __type: "api",
+      method: "PUT",
+      url: `https://address-book.com/api/contacts/${id}`,
+      status: 200,
+      payload,
+      response: { contact: payload },
+      ms: getRandomNumber(50, 500),
+    });
+  } else {
+    logger.info("query", {
+      __type: "query",
+      query: `UPDATE Contact SET first = $1, last = $2, avatar = $3, twitter = $4, notes = $5, favorite = $6 WHERE id = $7`,
+      params: [
+        payload.first,
+        payload.last,
+        payload.avatar,
+        payload.twitter,
+        payload.notes,
+        payload.favorite,
+        payload.id,
+      ],
+      ms: getRandomNumber(2, 60),
+    });
+  }
   return contact;
 }
 
 export async function deleteContact(id: string) {
   fakeContacts.destroy(id);
+  if (logSwitch.source === "api") {
+    logger.info("delete contact", {
+      __type: "api",
+      method: "DELETE",
+      url: `https://address-book.com/api/contacts/${id}`,
+      status: 200,
+      ms: getRandomNumber(50, 500),
+    });
+  } else {
+    logger.info("query", {
+      __type: "query",
+      query: `DELETE FROM Contact WHERE id = $1`,
+      params: [id],
+      ms: getRandomNumber(2, 60),
+    });
+  }
 }
 
 [

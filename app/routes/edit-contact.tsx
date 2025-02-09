@@ -8,6 +8,7 @@ export async function loader({ params }: Route.LoaderArgs) {
   if (!contact) {
     throw new Response("Not Found", { status: 404 });
   }
+
   return { contact };
 }
 
