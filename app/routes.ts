@@ -9,4 +9,5 @@ export default [
   ]),
   route("contacts/:contactId/destroy", "routes/destroy-contact.tsx"),
   route("about", "routes/about.tsx"),
+  route("contacts", "routes/contacts.tsx"),
 ] satisfies RouteConfig;
