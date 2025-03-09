@@ -79,6 +79,7 @@ export async function createEmptyContact() {
 }
 
 export async function getContact(id: string) {
+  id = id.uppercase();
   return fakeContacts.get(id);
 }
 

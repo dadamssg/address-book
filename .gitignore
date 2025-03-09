@@ -5,3 +5,5 @@
 /.react-router/
 /build/
 .idea
+*.env
+!example.env
